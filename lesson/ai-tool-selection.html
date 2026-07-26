@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>その質問、どのAIに聞きますか — Gemini / NotebookLM / AIモードの使い分け</title>
+</head>
+<body>
+<style>
+:root {
+  /* 黒板の深緑を軸に、ニュートラルをわずかに緑へ寄せた配色 */
+  --ink:        #1B2420;
+  --ink-soft:   #4A5852;
+  --ink-faint:  #7C8A83;
+  --paper:      #F7F8F5;
+  --paper-2:    #FFFFFF;
+  --rule:       #DDE2DB;
+  --board:      #1F4A3C;   /* 黒板 = 主アクセント */
+  --board-tint: #E7EFEA;
+  --vermilion:  #B3372A;   /* 朱書き = 注意のみ */
+  --verm-tint:  #F7E9E6;
+  --chalk:      #EFF3EC;
+
+  --font-display: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", "Noto Serif JP", serif;
+  --font-body: "Hiragino Kaku Gothic ProN", "Yu Gothic", "YuGothic", "Noto Sans JP", "Meiryo", sans-serif;
+  --font-util: ui-monospace, "SFMono-Regular", "Menlo", "Consolas", monospace;
+
+  --measure: 34rem;
+  --pad: clamp(1.25rem, 4vw, 3rem);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink:        #E6EDE7;
+    --ink-soft:   #AEBCB3;
+    --ink-faint:  #7F8F86;
+    --paper:      #141C19;
+    --paper-2:    #1B2521;
+    --rule:       #2E3B35;
+    --board:      #7FC9A9;
+    --board-tint: #1E2E28;
+    --vermilion:  #E8887A;
+    --verm-tint:  #2E211F;
+    --chalk:      #EFF3EC;
+  }
+}
+:root[data-theme="dark"] {
+  --ink:        #E6EDE7;
+  --ink-soft:   #AEBCB3;
+  --ink-faint:  #7F8F86;
+  --paper:      #141C19;
+  --paper-2:    #1B2521;
+  --rule:       #2E3B35;
+  --board:      #7FC9A9;
+  --board-tint: #1E2E28;
+  --vermilion:  #E8887A;
+  --verm-tint:  #2E211F;
+}
+:root[data-theme="light"] {
+  --ink:        #1B2420;
+  --ink-soft:   #4A5852;
+  --ink-faint:  #7C8A83;
+  --paper:      #F7F8F5;
+  --paper-2:    #FFFFFF;
+  --rule:       #DDE2DB;
+  --board:      #1F4A3C;
+  --board-tint: #E7EFEA;
+  --vermilion:  #B3372A;
+  --verm-tint:  #F7E9E6;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.85;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: var(--pad);
+  display: flex;
+  flex-direction: column;
+  gap: 3.5rem;
+}
+
+/* ---------- 見出し ---------- */
+h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; text-wrap: balance; margin: 0; line-height: 1.4; }
+h1 { font-size: clamp(1.75rem, 4.5vw, 2.6rem); letter-spacing: .02em; }
+h2 { font-size: clamp(1.3rem, 3vw, 1.7rem); }
+h3 { font-size: 1.1rem; }
+p { margin: 0; }
+
+.eyebrow {
+  font-family: var(--font-util);
+  font-size: .7rem;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--board);
+  margin: 0;
+}
+
+section { display: flex; flex-direction: column; gap: 1.25rem; }
+section > p, section > ul { max-width: var(--measure); }
+
+.section-head {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  padding-bottom: .75rem;
+  border-bottom: 2px solid var(--ink);
+}
+
+/* ---------- ヘッダー ---------- */
+header { display: flex; flex-direction: column; gap: 1.5rem; }
+.lede { font-size: 1.05rem; color: var(--ink-soft); max-width: var(--measure); }
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 2rem;
+  padding: .9rem 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  font-size: .85rem;
+}
+.meta div { display: flex; gap: .6rem; align-items: baseline; }
+.meta dt { color: var(--ink-faint); font-family: var(--font-util); font-size: .7rem; letter-spacing: .12em; }
+.meta dd { margin: 0; }
+
+/* ---------- 3分類カード ---------- */
+.origins {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1rem;
+}
+.origin {
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-top: 3px solid var(--board);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+.origin .tool { font-family: var(--font-display); font-size: 1.15rem; font-weight: 600; }
+.origin .where { font-size: .8rem; font-family: var(--font-util); color: var(--board); letter-spacing: .04em; }
+.origin p { font-size: .9rem; color: var(--ink-soft); line-height: 1.75; }
+.origin.risk { border-top-color: var(--vermilion); }
+.origin.risk .where { color: var(--vermilion); }
+
+/* ---------- 比較表 ---------- */
+.table-scroll { overflow-x: auto; border: 1px solid var(--rule); background: var(--paper-2); }
+table { border-collapse: collapse; width: 100%; min-width: 48rem; font-size: .875rem; }
+caption { text-align: left; padding: .75rem 1rem; font-size: .8rem; color: var(--ink-faint); border-bottom: 1px solid var(--rule); }
+th, td { text-align: left; vertical-align: top; padding: .8rem 1rem; border-bottom: 1px solid var(--rule); line-height: 1.7; }
+thead th { background: var(--board); color: var(--chalk); font-family: var(--font-display); font-weight: 600; font-size: .95rem; position: sticky; top: 0; }
+thead th:first-child { background: var(--board); }
+tbody th {
+  font-family: var(--font-util);
+  font-size: .72rem;
+  letter-spacing: .06em;
+  color: var(--ink-faint);
+  font-weight: 400;
+  white-space: nowrap;
+  background: var(--paper);
+  width: 9rem;
+}
+tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
+td strong { font-weight: 600; }
+.warn { color: var(--vermilion); }
+
+/* ---------- 3つの問い ---------- */
+.questions { display: flex; flex-direction: column; gap: 0; counter-reset: q; }
+.question {
+  display: grid;
+  grid-template-columns: 3.5rem 1fr;
+  gap: 0 1rem;
+  padding: 1.1rem 0;
+  border-bottom: 1px solid var(--rule);
+  align-items: baseline;
+}
+.question:first-child { border-top: 1px solid var(--rule); }
+.question .num {
+  font-family: var(--font-util);
+  font-size: .8rem;
+  color: var(--board);
+  letter-spacing: .05em;
+}
+.question .q { font-family: var(--font-display); font-size: 1.05rem; }
+.question .a { grid-column: 2; font-size: .9rem; color: var(--ink-soft); }
+.question .a b { color: var(--ink); font-weight: 600; }
+
+/* ---------- 場面カード ---------- */
+.controls { display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; }
+button {
+  font-family: var(--font-body);
+  font-size: .85rem;
+  padding: .5rem 1rem;
+  background: var(--paper-2);
+  color: var(--ink);
+  border: 1px solid var(--ink-soft);
+  cursor: pointer;
+  border-radius: 2px;
+}
+button:hover { background: var(--board-tint); }
+button:focus-visible { outline: 2px solid var(--board); outline-offset: 2px; }
+
+.cases { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 1rem; }
+.case {
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+}
+.case-no {
+  font-family: var(--font-util);
+  font-size: .7rem;
+  letter-spacing: .14em;
+  color: var(--ink-faint);
+}
+.case-body { font-family: var(--font-display); font-size: 1.02rem; line-height: 1.7; }
+.case details { border-top: 1px dashed var(--rule); padding-top: .75rem; }
+.case summary {
+  cursor: pointer;
+  font-size: .8rem;
+  font-family: var(--font-util);
+  letter-spacing: .08em;
+  color: var(--board);
+  list-style: none;
+}
+.case summary::-webkit-details-marker { display: none; }
+.case summary::before { content: "▸ "; }
+.case details[open] summary::before { content: "▾ "; }
+.case summary:focus-visible { outline: 2px solid var(--board); outline-offset: 2px; }
+.answer { display: flex; flex-direction: column; gap: .6rem; padding-top: .75rem; }
+.rank { display: flex; gap: .6rem; align-items: baseline; font-size: .875rem; line-height: 1.7; }
+.mark {
+  font-family: var(--font-util);
+  font-size: .95rem;
+  width: 1.3rem;
+  flex: none;
+  text-align: center;
+  color: var(--board);
+}
+.rank.no .mark { color: var(--vermilion); }
+.rank .why { color: var(--ink-soft); }
+.rank .why b { color: var(--ink); font-weight: 600; }
+.pitfall {
+  background: var(--verm-tint);
+  border-left: 3px solid var(--vermilion);
+  padding: .7rem .9rem;
+  font-size: .82rem;
+  line-height: 1.75;
+}
+.pitfall span {
+  display: block;
+  font-family: var(--font-util);
+  font-size: .65rem;
+  letter-spacing: .12em;
+  color: var(--vermilion);
+  margin-bottom: .2rem;
+}
+
+/* ---------- 進行 ---------- */
+.timeline { display: flex; flex-direction: column; gap: 0; }
+.slot {
+  display: grid;
+  grid-template-columns: 6rem 1fr;
+  gap: 0 1.25rem;
+  padding: .8rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+.slot:first-child { border-top: 1px solid var(--rule); }
+.slot .time { font-family: var(--font-util); font-size: .78rem; color: var(--board); font-variant-numeric: tabular-nums; }
+.slot .what b { display: block; font-family: var(--font-display); font-size: 1rem; font-weight: 600; }
+.slot .what { font-size: .87rem; color: var(--ink-soft); }
+
+/* ---------- 3か条 ---------- */
+.rules { display: flex; flex-direction: column; gap: .9rem; margin: 0; padding: 0; list-style: none; counter-reset: r; }
+.rules li {
+  counter-increment: r;
+  display: grid;
+  grid-template-columns: 2.5rem 1fr;
+  gap: 0 1rem;
+  background: var(--board-tint);
+  padding: 1rem 1.25rem;
+  align-items: baseline;
+}
+.rules li::before {
+  content: "第" counter(r);
+  font-family: var(--font-display);
+  font-size: .85rem;
+  color: var(--board);
+}
+.rules b { font-family: var(--font-display); font-size: 1.02rem; display: block; }
+.rules span { font-size: .87rem; color: var(--ink-soft); }
+
+.note {
+  border: 1px solid var(--vermilion);
+  padding: 1rem 1.25rem;
+  font-size: .87rem;
+  line-height: 1.8;
+  max-width: var(--measure);
+}
+.note b { color: var(--vermilion); }
+
+footer {
+  border-top: 1px solid var(--rule);
+  padding-top: 1.25rem;
+  font-size: .78rem;
+  color: var(--ink-faint);
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+}
+footer a { color: inherit; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+@media print {
+  body { background: #fff; font-size: 10.5pt; line-height: 1.6; }
+  .wrap { gap: 1.75rem; max-width: none; padding: 0; }
+  .controls { display: none; }
+  .case, .origin, .table-scroll { break-inside: avoid; }
+  section { break-inside: auto; }
+  thead th { background: #eee !important; color: #000 !important; }
+  .cases { grid-template-columns: 1fr 1fr; }
+}
+</style>
+
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">校内研修プログラム</p>
+  <h1>その質問、どのAIに聞きますか</h1>
+  <p class="lede">
+    生成AIに幻滅する原因の多くは、AIの性能ではなく<strong>「聞く相手を間違えていること」</strong>にあります。
+    Gemini・NotebookLM・Google検索のAIモードを、それぞれの「答えの根拠がどこにあるか」で捉え直し、
+    校務のどの場面でどれを開くかを、実際の場面で選び分けます。
+  </p>
+  <dl class="meta">
+    <div><dt>対象</dt><dd>教職員（生成AIを触ったことがある／幻滅したことがある方）</dd></div>
+    <div><dt>時間</dt><dd>60分（実機演習を入れる場合は90分）</dd></div>
+    <div><dt>ねらい</dt><dd>3つのツールを根拠の所在で説明でき、場面に応じて選べる</dd></div>
+    <div><dt>形態</dt><dd>説明20分＋グループ演習25分＋解説・まとめ15分</dd></div>
+  </dl>
+</header>
+
+<section>
+  <div class="section-head">
+    <p class="eyebrow">導入 — なぜ幻滅するのか</p>
+    <h2>ちがいは賢さではなく、「答えの根拠がどこにあるか」</h2>
+  </div>
+  <p>
+    3つとも同じGoogleの生成AIですが、答えを作るときに見ている場所が違います。
+    ここを取り違えたまま使うと、まじめに嘘をつかれます。
+  </p>
+  <div class="origins">
+    <div class="origin risk">
+      <span class="where">根拠 → モデルの中</span>
+      <span class="tool">Gemini（チャット）</span>
+      <p>学習した膨大な言葉のつながりから、もっともらしい続きを作る。文章としての完成度は高いが、根拠は回答の中に溶けていて取り出せない。<strong>固有名詞・数値・日付が最も崩れやすい。</strong></p>
+    </div>
+    <div class="origin">
+      <span class="where">根拠 → 今のウェブ</span>
+      <span class="tool">Google検索 AIモード</span>
+      <p>その場でウェブを検索し、要約と一緒に出典リンクを並べる。<strong>怪しければリンクを開いて自分で確かめられる</strong>のが最大の違い。最新の情報に強い。</p>
+    </div>
+    <div class="origin">
+      <span class="where">根拠 → 入れた資料だけ</span>
+      <span class="tool">NotebookLM</span>
+      <p>自分がアップロードした資料の中だけで答え、一文ごとに原文の該当箇所を示す。<strong>資料にないことは答えない</strong>ため、思いつきが混ざりにくい。</p>
+    </div>
+  </div>
+  <p>
+    つまり、<strong>「根拠が要る仕事」なのに根拠を持たない相手（Gemini）に聞いている</strong>——これが幻滅の正体です。
+  </p>
+</section>
+
+<section>
+  <div class="section-head">
+    <p class="eyebrow">比較 — 3つの特性</p>
+    <h2>持ち味と、落とし穴</h2>
+  </div>
+  <div class="table-scroll">
+    <table>
+      <caption>横にスクロールできます／印刷時は全体が入ります</caption>
+      <thead>
+        <tr>
+          <th scope="col">観点</th>
+          <th scope="col">Gemini（チャット）</th>
+          <th scope="col">NotebookLM</th>
+          <th scope="col">Google検索 AIモード</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">ひとことで</th>
+          <td><strong>文章の相棒</strong><br>相談・下書き役</td>
+          <td><strong>資料専属の司書</strong><br>読み解き・突き合わせ役</td>
+          <td><strong>調べ物の相棒</strong><br>事実確認・情報源探し役</td>
+        </tr>
+        <tr>
+          <th scope="row">答えの根拠</th>
+          <td>学習済みの知識と、会話の流れ</td>
+          <td>自分が入れた資料のみ</td>
+          <td>いま検索したウェブページ</td>
+        </tr>
+        <tr>
+          <th scope="row">出典の示し方</th>
+          <td class="warn">原則示さない。聞けば出るが、出典自体が作り話のことがある</td>
+          <td>文ごとに引用番号。クリックで原文の該当箇所へ飛べる</td>
+          <td>要約の傍にリンクが並ぶ。一次情報へ辿れる</td>
+        </tr>
+        <tr>
+          <th scope="row">情報の鮮度</th>
+          <td class="warn">学習時点まで。最新の通知・改訂は苦手</td>
+          <td>入れた資料の日付がそのまま鮮度</td>
+          <td><strong>今この瞬間</strong>のウェブ</td>
+        </tr>
+        <tr>
+          <th scope="row">事実の正確さ</th>
+          <td class="warn">3つの中で最も崩れやすい。検証は人間の仕事</td>
+          <td>最も高い。ただし要約の粒度ズレは起こる</td>
+          <td>リンクを開けば確かめられる。情報源の質は自分で見極める</td>
+        </tr>
+        <tr>
+          <th scope="row">得意なこと</th>
+          <td>たたき台作成、言い換え、要約、翻訳、構成案、想定問答づくり</td>
+          <td>長文の読み解き、複数資料の突き合わせ、根拠つき抜き出し、音声での概要把握</td>
+          <td>最新情報、事実確認、省庁・自治体など一次情報の発見、比較調査</td>
+        </tr>
+        <tr>
+          <th scope="row">苦手なこと</th>
+          <td>事実確認、自校固有の事情、根拠を求められる文書</td>
+          <td>資料の外にある一般常識・最新情報。資料が薄いと答えも薄い</td>
+          <td>長い文書の作成、手元資料の分析</td>
+        </tr>
+        <tr>
+          <th scope="row">校務の使いどころ</th>
+          <td>通知文・お便りの下書き、研修企画案、問い合わせへの返答案、平易な言い換え</td>
+          <td>学校評価アンケートの自由記述分析、要領・通知の読み解き、議事録の検索、規程の突き合わせ</td>
+          <td>法令・通知の最新状況、見学先・施設情報、他校の実践事例探し</td>
+        </tr>
+        <tr>
+          <th scope="row">入れてよい情報</th>
+          <td colspan="3" class="warn"><strong>3つとも共通：児童生徒の氏名・成績・家庭状況などの個人情報、未公表の人事・案件は入れない。</strong>所属自治体・学校の利用ルールが常に優先します。</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <div class="section-head">
+    <p class="eyebrow">判断 — 開く前の3秒</p>
+    <h2>この3つを、順に自分に聞く</h2>
+  </div>
+  <div class="questions">
+    <div class="question">
+      <span class="num">問1</span>
+      <span class="q">答えの根拠は、<em>手元の資料の中</em>にある？</span>
+      <span class="a">→ ある（アンケート結果、要領、議事録、紀要…）なら <b>NotebookLM</b>。資料を入れてから聞く。</span>
+    </div>
+    <div class="question">
+      <span class="num">問2</span>
+      <span class="q">知りたいのは、<em>外にある事実</em>？</span>
+      <span class="a">→ 最新の通知、料金、他校の事例なら <b>AIモード</b>。出典リンクを必ず開いて確かめる。</span>
+    </div>
+    <div class="question">
+      <span class="num">問3</span>
+      <span class="q">やりたいのは、<em>文章を作る・整える</em>こと？</span>
+      <span class="a">→ たたき台、言い換え、構成案なら <b>Gemini</b>。ただし中身の事実は自分で入れる。</span>
+    </div>
+  </div>
+  <p>
+    3つとも「はい」になる仕事も普通にあります。その場合は<strong>順番に使う</strong>——
+    調べる（AIモード）→ 読み込む（NotebookLM）→ 書く（Gemini）。これが実務では一番多い形です。
+  </p>
+</section>
+
+<section>
+  <div class="section-head">
+    <p class="eyebrow">演習 — 場面で選ぶ</p>
+    <h2>あなたなら、どれを開きますか</h2>
+  </div>
+  <p>
+    まず個人で3分、次にグループで理由を出し合います。<strong>正解は一つとは限りません。</strong>
+    大事なのは選んだ理由が言えること。解説では「妥当性が高いのは」という形で示します。
+  </p>
+  <div class="controls">
+    <button type="button" id="toggle-all">解説をすべて開く</button>
+    <span style="font-size:.8rem;color:var(--ink-faint)">演習中は閉じたまま配布してください</span>
+  </div>
+
+  <div class="cases">
+
+    <article class="case">
+      <span class="case-no">場面 01</span>
+      <p class="case-body">昨年度の学校評価アンケート、保護者の自由記述が200件。どんな要望が多かったのか傾向をつかみたい。</p>
+      <details>
+        <summary>妥当性の高い選択</summary>
+        <div class="answer">
+          <div class="rank"><span class="mark">◎</span><span class="why"><b>NotebookLM</b>／記述データを入れれば、「どの記述が根拠か」を示しながら分類してくれる。報告書にそのまま使える形。</span></div>
+          <div class="rank"><span class="mark">○</span><span class="why"><b>Gemini</b>／件数が少なく、傾向を大づかみしたいだけなら可。ただし引用の裏取りは自分で。</span></div>
+          <div class="rank no"><span class="mark">×</span><span class="why"><b>AIモード</b>／手元のデータは検索できません。</span></div>
+          <div class="pitfall"><span>幻滅ポイント</span>Geminiに全文を貼って要約させると、実在しない「〜という声が多く見られました」が生成されます。原文にあたれない要約は、学校評価では使えません。</div>
+        </div>
+      </details>
+    </article>
+
+    <article class="case">
+      <span class="case-no">場面 02</span>
+      <p class="case-body">来週の職員会議に出す提案文書。骨子は頭にあるが、書き出しと構成が浮かばない。</p>
+      <details>
+        <summary>妥当性の高い選択</summary>
+        <div class="answer">
+          <div class="rank"><span class="mark">◎</span><span class="why"><b>Gemini</b>／構成案と書き出しを3案出させ、選んで直す。たたき台づくりは本来の得意分野。</span></div>
+          <div class="rank"><span class="mark">◎</span><span class="why"><b>NotebookLM</b>／<strong>過去の提案文書を入れておけば</strong>、自校の様式・語り口に沿った下書きになる。定型文書ではこちらが強い。</span></div>
+          <div class="rank no"><span class="mark">×</span><span class="why"><b>AIモード</b>／文書作成には向きません。</span></div>
+          <div class="pitfall"><span>幻滅ポイント</span>Geminiの下書きは「どこの学校のものでもない一般論」になりがち。自校の事実（数値・経緯）は必ず自分で入れてください。</div>
+        </div>
+      </details>
+    </article>
+
+    <article class="case">
+      <span class="case-no">場面 03</span>
+      <p class="case-body">情報活用能力の育成について、国の通知や答申が今どうなっているか確認したい。</p>
+      <details>
+        <summary>妥当性の高い選択</summary>
+        <div class="answer">
+          <div class="rank"><span class="mark">◎</span><span class="why"><b>AIモード</b>／出典リンクから文部科学省のページへ辿り、一次情報で確認する。最新性が要る調べ物の本命。</span></div>
+          <div class="rank"><span class="mark">○</span><span class="why"><b>NotebookLM</b>／原典PDFを入手済みなら、読み解きはこちらが上。<strong>探すのはAIモード、読むのはNotebookLM。</strong></span></div>
+          <div class="rank no"><span class="mark">×</span><span class="why"><b>Gemini</b>／最も危険な使い方。</span></div>
+          <div class="pitfall"><span>幻滅ポイント</span>存在しない通知名・答申名・年月日をもっともらしく答えます。会議資料に載せてから気づくのが最悪のパターンです。</div>
+        </div>
+      </details>
+    </article>
+
+    <article class="case">
+      <span class="case-no">場面 04</span>
+      <p class="case-body">自校のいじめ防止基本方針が、国の指針の記述とずれていないか点検したい。</p>
+      <details>
+        <summary>妥当性の高い選択</summary>
+        <div class="answer">
+          <div class="rank"><span class="mark">◎</span><span class="why"><b>NotebookLM</b>／<strong>両方を同じノートに入れて</strong>「食い違う箇所を挙げて」と聞く。突き合わせは最も得意な仕事。</span></div>
+          <div class="rank"><span class="mark">○</span><span class="why"><b>AIモード</b>／国の指針の最新版を入手する前段として。</span></div>
+          <div class="rank no"><span class="mark">×</span><span class="why"><b>Gemini</b>／自校の方針を知らないので、一般論しか返ってきません。</span></div>
+          <div class="pitfall"><span>幻滅ポイント</span>NotebookLMでも「該当なし」と出たときは、本当にないのか、資料の入れ忘れかを疑ってください。</div>
+        </div>
+      </details>
+    </article>
+
+    <article class="case">
+      <span class="case-no">場面 05</span>
+      <p class="case-body">修学旅行の見学先について、今年度の休館日と団体料金を知りたい。</p>
+      <details>
+        <summary>妥当性の高い選択</summary>
+        <div class="answer">
+          <div class="rank"><span class="mark">◎</span><span class="why"><b>AIモード</b>／候補を素早く絞る。ただし<strong>最終確認は公式サイト、確定は電話</strong>。AIの回答で予約はしない。</span></div>
+          <div class="rank no"><span class="mark">×</span><span class="why"><b>Gemini</b>／料金と休館日は、学習時点で止まっているか、そもそも作られた数字です。</span></div>
+          <div class="rank no"><span class="mark">×</span><span class="why"><b>NotebookLM</b>／手元に資料がなければ答えようがありません。</span></div>
+          <div class="pitfall"><span>幻滅ポイント</span>数字は自信たっぷりに出てきます。「もっともらしさ」と「正しさ」は別物です。</div>
+        </div>
+      </details>
+    </article>
+
+    <article class="case">
+      <span class="case-no">場面 06</span>
+      <p class="case-body">保護者向けのお便り。表現が硬いと言われたので、低学年の保護者にも伝わる文章に直したい。</p>
+      <details>
+        <summary>妥当性の高い選択</summary>
+        <div class="answer">
+          <div class="rank"><span class="mark">◎</span><span class="why"><b>Gemini</b>／読み手を指定して書き換えさせる。「小学1年生の保護者向けに、専門用語を避けて」と伝えるほど精度が上がる。</span></div>
+          <div class="rank no"><span class="mark">△</span><span class="why"><b>NotebookLM</b>／資料に基づく作業ではないため、わざわざ使う場面ではありません。</span></div>
+          <div class="rank no"><span class="mark">×</span><span class="why"><b>AIモード</b>／文章の推敲には向きません。</span></div>
+          <div class="pitfall"><span>幻滅ポイント</span>言い換えの過程で、日付や場所がしれっと変わることがあります。書き換え後は事実部分だけ突き合わせてください。</div>
+        </div>
+      </details>
+    </article>
+
+    <article class="case">
+      <span class="case-no">場面 07</span>
+      <p class="case-body">校内研修で扱う研究紀要が100ページ超。要点を短時間でつかみたい。できれば移動中に耳で。</p>
+      <details>
+        <summary>妥当性の高い選択</summary>
+        <div class="answer">
+          <div class="rank"><span class="mark">◎</span><span class="why"><b>NotebookLM</b>／長文の読み解きに加え、<strong>音声概要</strong>で対話形式の解説を聞ける。通勤・移動時間が予習時間になる。</span></div>
+          <div class="rank"><span class="mark">○</span><span class="why"><b>Gemini</b>／PDFを渡せば要約はできる。ただし「どこに書いてあったか」は追えません。</span></div>
+          <div class="rank no"><span class="mark">×</span><span class="why"><b>AIモード</b>／手元のPDFは対象外。</span></div>
+          <div class="pitfall"><span>幻滅ポイント</span>音声概要は分かりやすい反面、噛み砕きすぎて細部が落ちます。研修で引用する箇所は原文で確認を。</div>
+        </div>
+      </details>
+    </article>
+
+    <article class="case">
+      <span class="case-no">場面 08</span>
+      <p class="case-body">合理的配慮について、他校がどんな実践をしているか幅広く知りたい。</p>
+      <details>
+        <summary>妥当性の高い選択</summary>
+        <div class="answer">
+          <div class="rank"><span class="mark">◎</span><span class="why"><b>AIモード → NotebookLM</b>／まず検索で事例や報告書を探し、<strong>見つけたPDFをNotebookLMに入れて精読・比較</strong>する。この二段構えが実務では最も効きます。</span></div>
+          <div class="rank"><span class="mark">△</span><span class="why"><b>Gemini</b>／「どんな観点がありうるか」の当たりをつける段階までなら有効。事例そのものは信用しない。</span></div>
+          <div class="pitfall"><span>幻滅ポイント</span>Geminiが挙げる「〇〇市立△△小学校の実践」は、実在しない学校名であることがよくあります。</div>
+        </div>
+      </details>
+    </article>
+
+    <article class="case">
+      <span class="case-no">場面 09</span>
+      <p class="case-body">児童の氏名が入った名簿をもとに、配慮事項を踏まえた座席表を作りたい。</p>
+      <details>
+        <summary>妥当性の高い選択</summary>
+        <div class="answer">
+          <div class="rank no"><span class="mark">－</span><span class="why"><b>どれも選ばない。</b>これはツール選択以前の問題です。氏名・配慮事項は個人情報であり、外部の生成AIに入力しません。座席表は表計算ソフトで作成を。</span></div>
+          <div class="rank"><span class="mark">○</span><span class="why"><b>Gemini</b>／<strong>個人情報を伏せて</strong>「座席配置を考える際の観点を挙げて」と聞くのは有効。判断そのものは人が行う。</span></div>
+          <div class="pitfall"><span>幻滅ポイント</span>便利さで判断せず、所属自治体・学校の利用ルールを最優先に。この場面カードは、そのことを全体で確認するために入れてあります。</div>
+        </div>
+      </details>
+    </article>
+
+    <article class="case">
+      <span class="case-no">場面 10</span>
+      <p class="case-body">1学期の学校評価の集計結果をもとに、保護者向けの報告文を書きたい。</p>
+      <details>
+        <summary>妥当性の高い選択</summary>
+        <div class="answer">
+          <div class="rank"><span class="mark">◎</span><span class="why"><b>NotebookLM → Gemini</b>／集計結果から<strong>事実と根拠をNotebookLMで抜き出し</strong>、それを渡して<strong>Geminiで文章化</strong>する。役割分担が最もはっきりする場面。</span></div>
+          <div class="rank"><span class="mark">○</span><span class="why"><b>NotebookLM単独</b>／根拠の確かさを優先するなら、文章の完成度は落ちても一貫して使う手も。</span></div>
+          <div class="rank no"><span class="mark">×</span><span class="why"><b>Gemini単独</b>／数値が変わります。公表文書では致命的です。</span></div>
+          <div class="pitfall"><span>幻滅ポイント</span>組み合わせて使う場合でも、<strong>最終稿の数値は必ず原典と突き合わせる</strong>。ここだけは省略できません。</div>
+        </div>
+      </details>
+    </article>
+
+  </div>
+</section>
+
+<section>
+  <div class="section-head">
+    <p class="eyebrow">進行 — 60分の組み立て</p>
+    <h2>タイムテーブル</h2>
+  </div>
+  <div class="timeline">
+    <div class="slot"><span class="time">0–10分</span><span class="what"><b>幻滅体験を出し合う</b>「AIに嘘をつかれた話」を隣同士で2分。出た事例を板書し、後半の伏線にする。</span></div>
+    <div class="slot"><span class="time">10–20分</span><span class="what"><b>根拠の在りか</b>3分類を説明。出し合った失敗が「根拠を持たない相手に聞いた」ことに集約されると示す。</span></div>
+    <div class="slot"><span class="time">20–25分</span><span class="what"><b>比較表と3つの問い</b>表は読み上げず、「出典の示し方」「情報の鮮度」の2行だけ強調する。</span></div>
+    <div class="slot"><span class="time">25–45分</span><span class="what"><b>場面カード演習</b>個人3分 → グループ12分（10場面を分担してもよい）→ 全体で数場面を発表5分。</span></div>
+    <div class="slot"><span class="time">45–55分</span><span class="what"><b>解説</b>「妥当性が高いのは」の形で提示。組み合わせが答えになる場面08・10と、選ばない場面09を必ず扱う。</span></div>
+    <div class="slot"><span class="time">55–60分</span><span class="what"><b>持ち帰り3か条</b>明日の校務で1つ試すことを各自ひとこと宣言して終了。</span></div>
+  </div>
+  <p style="font-size:.87rem;color:var(--ink-soft)">
+    <strong>90分版：</strong>解説の後に実機演習30分。場面04（規程の突き合わせ）と場面08（事例探し→精読）を、各自の端末で実際に体験してもらうと定着します。
+  </p>
+</section>
+
+<section>
+  <div class="section-head">
+    <p class="eyebrow">まとめ — 持ち帰る3か条</p>
+    <h2>明日からの使い分け</h2>
+  </div>
+  <ol class="rules">
+    <li><span><b>根拠が要る仕事は、根拠を持たせてから聞く</b><span>資料があるならNotebookLM、外の事実ならAIモード。「Geminiに聞いて確かめる」は順番が逆。</span></span></li>
+    <li><span><b>固有名詞・数値・日付・法令名は、そのまま使わない</b><span>ここが崩れやすい4点。原典に当たる時間まで含めて、AI活用の作業時間です。</span></span></li>
+    <li><span><b>個人情報と未公表情報は、どのツールにも入れない</b><span>所属自治体・学校の利用ルールが常に優先。迷ったら入れない。</span></span></li>
+  </ol>
+  <div class="note">
+    <b>講師へ：</b>この講座の肝は「AIは信用できない」で終わらせないことです。
+    幻滅の原因を性能ではなく<strong>使い分けの問題</strong>として説明できれば、参加者は「もう一度使ってみよう」と思えます。
+    演習では、選択そのものより<strong>「なぜそれを選んだか」の言語化</strong>を評価してください。
+  </div>
+</section>
+
+<footer>
+  <p>校内研修用資料／このページは印刷して配布できます（解説は閉じたままでも印刷されます）。</p>
+  <p>各ツールの機能は更新が頻繁です。実施前に最新の仕様と、所属自治体の生成AI利用ガイドラインをご確認ください。</p>
+</footer>
+
+</div>
+
+<script>
+(function () {
+  var btn = document.getElementById('toggle-all');
+  var items = document.querySelectorAll('.case details');
+  btn.addEventListener('click', function () {
+    var open = btn.getAttribute('data-open') === 'true';
+    items.forEach(function (d) { d.open = !open; });
+    btn.setAttribute('data-open', String(!open));
+    btn.textContent = open ? '解説をすべて開く' : '解説をすべて閉じる';
+  });
+})();
+</script>
+</body>
+</html>
